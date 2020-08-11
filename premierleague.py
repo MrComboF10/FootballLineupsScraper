@@ -6,6 +6,10 @@ with open("lineups.json") as lineups_json:
     lineups = json.load(lineups_json)
 
 
+def get_text_no_recursive(parent):
+    return ''.join(parent.find_all(text=True, recursive=False)).strip()
+
+
 def scrap_match_page(url):
     match_data = {}
     request_page = requests.get(url)
@@ -20,8 +24,8 @@ def scrap_match_page(url):
     # players = {}
     home_players_soup_list = soup.find("div", class_="col-4-m").find_all("li", class_="player")
     away_players_soup_list = soup.find("div", class_="col-4-m right").find_all("li", class_="player")
-    home_players = {player.find("div", class_="number").get_text(): player.find("span", class_="name").get_text().strip() for player in home_players_soup_list}
-    away_players = {player.find("div", class_="number").get_text(): player.find("span", class_="name").get_text().strip() for player in away_players_soup_list}
+    home_players = {player.find("div", class_="number").get_text(): get_text_no_recursive(player.find("div", class_="name")) for player in home_players_soup_list}
+    away_players = {player.find("div", class_="number").get_text(): get_text_no_recursive(player.find("div", class_="name")) for player in away_players_soup_list}
 
     # print(match_data["Home Team"])
     # print(home_team_formation)
