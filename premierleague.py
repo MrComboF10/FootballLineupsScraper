@@ -1,6 +1,11 @@
 import json
 import bs4
 import requests
+from selenium import webdriver
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import TimeoutException
 import openpyxl
 
 with open("lineups.json") as lineups_json:
@@ -11,7 +16,33 @@ def get_text_no_recursive(parent):
     return ''.join(parent.find_all(text=True, recursive=False)).strip()
 
 
+def scrap_season(year, url):
+    season_data = {}
+
+    chrome_driver = webdriver.Chrome("C:\\Users\\pcost\\chromedriver_win32\\chromedriver.exe")
+    delay = 3  # delay to load page
+    chrome_driver.get(url)
+    try:
+        myElem = WebDriverWait(chrome_driver, delay).until(
+            EC.presence_of_element_located((By.CLASS_NAME, 'matchFixtureContainer')))
+        print("Page is ready!")
+    except TimeoutException:
+        print("Loading page took too much time!")
+
+    soup = bs4.BeautifulSoup(chrome_driver.page_source, "html.parser")
+    chrome_driver.close()
+
+    season_data["Year"] = year
+    matches_soup_list = soup.find_all("li", class_="matchFixtureContainer")
+    matches_url_list = ["https://www.premierleague.com/match/" + match["data-comp-match-item"] for match in matches_soup_list]
+
+    matches_data = [scrap_match_page(match_url) for match_url in matches_url_list]
+
+    return {"Year": year, "Matches": matches_data}
+
+
 def scrap_match_page(url):
+    print(url)
     match_data = {}
     request_page = requests.get(url)
     soup = bs4.BeautifulSoup(request_page.content, "html.parser")
@@ -94,10 +125,10 @@ def create_wb(seasons):
             current_ws = wb.create_sheet(season["Year"])
 
         current_column = 1
-        current_ws.cell(row=1, column=current_column, value="Home Team")
+        current_ws.cell(row=1, column=current_column, value="HT")
 
         current_column += 1
-        current_ws.cell(row=1, column=current_column, value="Away Team")
+        current_ws.cell(row=1, column=current_column, value="AT")
 
         for position in lineups["positions"]:
             current_column += 1
@@ -107,11 +138,26 @@ def create_wb(seasons):
             current_column += 1
             current_ws.cell(row=1, column=current_column, value="A" + position)
 
-        for match_index in range(len(season)):
+        current_row = 2
+        current_column = 1
+        for match in season["Matches"]:
+            current_ws.cell(row=current_row, column=current_column, value=match["Home Team"])
+            current_column += 1
+            current_ws.cell(row=current_row, column=current_column, value=match["Away Team"])
+            for vector_element in match["Home Vector"]:
+                current_column += 1
+                current_ws.cell(row=current_row, column=current_column, value=vector_element)
+            for vector_element in match["Away Vector"]:
+                current_column += 1
+                current_ws.cell(row=current_row, column=current_column, value=vector_element)
+
+    wb.save("lineups.xlsx")
+    wb.close()
 
 
+# match1 = scrap_match_page("https://www.premierleague.com/match/46975")
 
 
-print(scrap_match_page("https://www.premierleague.com/match/46975"))
+# create_wb([{"Year": "2018_2019", "Matches": [match1]}])
 
-
+print(scrap_season("2019_2020", "https://www.premierleague.com/results?co=1&se=274&cl=-1"))
