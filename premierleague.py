@@ -11,6 +11,8 @@ import openpyxl
 with open("lineups.json") as lineups_json:
     lineups = json.load(lineups_json)
 
+taticas_rosques = {}
+
 
 def get_text_no_recursive(parent):
     return ''.join(parent.find_all(text=True, recursive=False)).strip()
@@ -47,8 +49,10 @@ def scrap_match_page(url):
     request_page = requests.get(url)
     soup = bs4.BeautifulSoup(request_page.content, "html.parser")
 
-    match_data["Home Team"] = soup.find("div", class_="team home").find("span", class_="long").get_text()
-    match_data["Away Team"] = soup.find("div", class_="team away").find("span", class_="long").get_text()
+    # match_data["Home Team"] = soup.find("div", class_="team home").find("span", class_="long").get_text()
+    # match_data["Away Team"] = soup.find("div", class_="team away").find("span", class_="long").get_text()
+    match_data["Home Team"] = get_text_no_recursive(soup.find("div", class_="col-4-m").find("div", class_="position"))
+    match_data["Away Team"] = get_text_no_recursive(soup.find("div", class_="col-4-m right").find("div", class_="position"))
     teams_formation_soup_list = soup.find_all("strong", class_="matchTeamFormation")
     home_team_formation = teams_formation_soup_list[0].get_text()
     away_team_formation = teams_formation_soup_list[1].get_text()
@@ -90,22 +94,42 @@ def scrap_match_page(url):
             away_players_name.append(away_players[player_number])
 
     match_data["Home Vector"] = []
-    i = 0
-    for tactic_position in lineups["tactics"][home_team_formation]:
-        if tactic_position == "1":
-            match_data["Home Vector"].append(home_players_name[i])
-            i += 1
+
+    if home_team_formation not in lineups["tactics"]:
+        print(home_team_formation)
+        if home_team_formation in taticas_rosques:
+            taticas_rosques[home_team_formation] += 1
         else:
-            match_data["Home Vector"].append(tactic_position)
+            taticas_rosques[home_team_formation] = 1
+        match_data["Home Vector"] = ["0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0",
+                                     "0", "0"]
+    else:
+        i = 0
+        for tactic_position in lineups["tactics"][home_team_formation]:
+            if tactic_position == "1":
+                match_data["Home Vector"].append(home_players_name[i])
+                i += 1
+            else:
+                match_data["Home Vector"].append(tactic_position)
 
     match_data["Away Vector"] = []
-    i = 0
-    for tactic_position in lineups["tactics"][away_team_formation]:
-        if tactic_position == "1":
-            match_data["Away Vector"].append(away_players_name[i])
-            i += 1
+
+    if away_team_formation not in lineups["tactics"]:
+        print(away_team_formation)
+        if away_team_formation in taticas_rosques:
+            taticas_rosques[away_team_formation] += 1
         else:
-            match_data["Away Vector"].append(tactic_position)
+            taticas_rosques[away_team_formation] = 1
+        match_data["Away Vector"] = ["0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0",
+                                     "0", "0"]
+    else:
+        i = 0
+        for tactic_position in lineups["tactics"][away_team_formation]:
+            if tactic_position == "1":
+                match_data["Away Vector"].append(away_players_name[i])
+                i += 1
+            else:
+                match_data["Away Vector"].append(tactic_position)
 
     return match_data
 
@@ -155,9 +179,21 @@ def create_wb(seasons):
     wb.close()
 
 
+def write_taticas_rosques():
+    open('TaticasRosques.txt', 'w').close()
+    with open("TaticasRosques.txt", "a") as taticas_rosques_file:
+        for tatica_rosque in taticas_rosques:
+            taticas_rosques_file.write(tatica_rosque + ": " + str(taticas_rosques[tatica_rosque]) + "\n")
+
 # match1 = scrap_match_page("https://www.premierleague.com/match/46975")
 
 
 # create_wb([{"Year": "2018_2019", "Matches": [match1]}])
 
+
 print(scrap_season("2019_2020", "https://www.premierleague.com/results?co=1&se=274&cl=-1"))
+print(scrap_season("2018_2019", "https://www.premierleague.com/results?co=1&se=210&cl=-1"))
+print(scrap_season("2017_2018", "https://www.premierleague.com/results?co=1&se=79&cl=-1"))
+print(scrap_season("2016_2017", "https://www.premierleague.com/results?co=1&se=54&cl=-1"))
+print(scrap_season("2015_2016", "https://www.premierleague.com/results?co=1&se=42&cl=-1"))
+write_taticas_rosques()
