@@ -7,15 +7,29 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
 import openpyxl
+import time
 
 with open("lineups.json") as lineups_json:
     lineups = json.load(lineups_json)
 
 taticas_rosques = {}
+jogos_quinados_url = []
 
 
 def get_text_no_recursive(parent):
     return ''.join(parent.find_all(text=True, recursive=False)).strip()
+
+
+def scrap_premier_league():
+    # seasons = [scrap_season("2019_2020", "https://www.premierleague.com/results?co=1&se=274&cl=-1"),
+    #            scrap_season("2018_2019", "https://www.premierleague.com/results?co=1&se=210&cl=-1"),
+    #            scrap_season("2017_2018", "https://www.premierleague.com/results?co=1&se=79&cl=-1"),
+    #            scrap_season("2016_2017", "https://www.premierleague.com/results?co=1&se=54&cl=-1"),
+    #            scrap_season("2015_2016", "https://www.premierleague.com/results?co=1&se=42&cl=-1")]
+
+    seasons = [scrap_season("2015_2016", "https://www.premierleague.com/results?co=1&se=42&cl=-1")]
+
+    return seasons
 
 
 def scrap_season(year, url):
@@ -24,6 +38,14 @@ def scrap_season(year, url):
     chrome_driver = webdriver.Chrome("C:\\Users\\pcost\\chromedriver_win32\\chromedriver.exe")
     delay = 3  # delay to load page
     chrome_driver.get(url)
+
+    # load all page content
+    y = 1000
+    for timer in range(0, 50):
+        chrome_driver.execute_script("window.scrollTo(0, " + str(y) + ")")
+        y += 1000
+        time.sleep(2)
+
     try:
         myElem = WebDriverWait(chrome_driver, delay).until(
             EC.presence_of_element_located((By.CLASS_NAME, 'matchFixtureContainer')))
@@ -37,8 +59,16 @@ def scrap_season(year, url):
     season_data["Year"] = year
     matches_soup_list = soup.find_all("li", class_="matchFixtureContainer")
     matches_url_list = ["https://www.premierleague.com/match/" + match["data-comp-match-item"] for match in matches_soup_list]
+    # remove duplicates
+    matches_url_list = list(dict.fromkeys(matches_url_list))
 
-    matches_data = [scrap_match_page(match_url) for match_url in matches_url_list]
+    matches_data = []
+    for match_url in matches_url_list:
+        match = scrap_match_page(match_url)
+        if match is None:
+            jogos_quinados_url.append(year + ": " + match_url)
+        else:
+            matches_data.append(match)
 
     return {"Year": year, "Matches": matches_data}
 
@@ -49,8 +79,6 @@ def scrap_match_page(url):
     request_page = requests.get(url)
     soup = bs4.BeautifulSoup(request_page.content, "html.parser")
 
-    # match_data["Home Team"] = soup.find("div", class_="team home").find("span", class_="long").get_text()
-    # match_data["Away Team"] = soup.find("div", class_="team away").find("span", class_="long").get_text()
     match_data["Home Team"] = get_text_no_recursive(soup.find("div", class_="col-4-m").find("div", class_="position"))
     match_data["Away Team"] = get_text_no_recursive(soup.find("div", class_="col-4-m right").find("div", class_="position"))
     teams_formation_soup_list = soup.find_all("strong", class_="matchTeamFormation")
@@ -71,6 +99,8 @@ def scrap_match_page(url):
         row = []
         row_soup_list = rows_soup.find_all("div", class_="pos")
         for row_soup in row_soup_list:
+            if row_soup.get_text() == "":
+                return None
             row.append(row_soup.get_text())
         home_rows.append(row[::-1])
 
@@ -79,6 +109,8 @@ def scrap_match_page(url):
         row = []
         row_soup_list = rows_soup.find_all("div", class_="pos")
         for row_soup in row_soup_list:
+            if row_soup.get_text() == "":
+                return None
             row.append(row_soup.get_text())
         away_rows.append(row[::-1])
 
@@ -101,8 +133,7 @@ def scrap_match_page(url):
             taticas_rosques[home_team_formation] += 1
         else:
             taticas_rosques[home_team_formation] = 1
-        match_data["Home Vector"] = ["0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0",
-                                     "0", "0"]
+        return None
     else:
         i = 0
         for tactic_position in lineups["tactics"][home_team_formation]:
@@ -120,8 +151,7 @@ def scrap_match_page(url):
             taticas_rosques[away_team_formation] += 1
         else:
             taticas_rosques[away_team_formation] = 1
-        match_data["Away Vector"] = ["0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0",
-                                     "0", "0"]
+        return None
     else:
         i = 0
         for tactic_position in lineups["tactics"][away_team_formation]:
@@ -174,6 +204,8 @@ def create_wb(seasons):
             for vector_element in match["Away Vector"]:
                 current_column += 1
                 current_ws.cell(row=current_row, column=current_column, value=vector_element)
+            current_row += 1
+            current_column = 1
 
     wb.save("lineups.xlsx")
     wb.close()
@@ -185,15 +217,14 @@ def write_taticas_rosques():
         for tatica_rosque in taticas_rosques:
             taticas_rosques_file.write(tatica_rosque + ": " + str(taticas_rosques[tatica_rosque]) + "\n")
 
-# match1 = scrap_match_page("https://www.premierleague.com/match/46975")
+
+def write_jogos_quinados():
+    open("JogosQuinados.txt", "w").close()
+    with open("JogosQuinados.txt", "a") as jogos_quinados_file:
+        for jogo_quinado in jogos_quinados_url:
+            jogos_quinados_file.write(jogo_quinado + "\n")
 
 
-# create_wb([{"Year": "2018_2019", "Matches": [match1]}])
-
-
-print(scrap_season("2019_2020", "https://www.premierleague.com/results?co=1&se=274&cl=-1"))
-print(scrap_season("2018_2019", "https://www.premierleague.com/results?co=1&se=210&cl=-1"))
-print(scrap_season("2017_2018", "https://www.premierleague.com/results?co=1&se=79&cl=-1"))
-print(scrap_season("2016_2017", "https://www.premierleague.com/results?co=1&se=54&cl=-1"))
-print(scrap_season("2015_2016", "https://www.premierleague.com/results?co=1&se=42&cl=-1"))
+create_wb(scrap_premier_league())
 write_taticas_rosques()
+write_jogos_quinados()
