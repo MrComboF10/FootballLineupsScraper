@@ -9,27 +9,22 @@ from selenium.common.exceptions import TimeoutException
 import openpyxl
 import time
 
-with open("lineups.json") as lineups_json:
-    lineups = json.load(lineups_json)
 
-taticas_rosques = {}
-jogos_quinados_url = []
+def start():
+    global lineups, taticas_rosques, jogos_quinados_url
+    with open("lineups.json") as lineups_json:
+        lineups = json.load(lineups_json)
+
+    taticas_rosques = {}
+    jogos_quinados_url = []
 
 
 def get_text_no_recursive(parent):
     return ''.join(parent.find_all(text=True, recursive=False)).strip()
 
 
-def scrap_premier_league():
-    # seasons = [scrap_season("2019_2020", "https://www.premierleague.com/results?co=1&se=274&cl=-1"),
-    #            scrap_season("2018_2019", "https://www.premierleague.com/results?co=1&se=210&cl=-1"),
-    #            scrap_season("2017_2018", "https://www.premierleague.com/results?co=1&se=79&cl=-1"),
-    #            scrap_season("2016_2017", "https://www.premierleague.com/results?co=1&se=54&cl=-1"),
-    #            scrap_season("2015_2016", "https://www.premierleague.com/results?co=1&se=42&cl=-1")]
-
-    seasons = [scrap_season("2015_2016", "https://www.premierleague.com/results?co=1&se=42&cl=-1")]
-
-    return seasons
+def scrap_premier_league(years, urls):
+    return [scrap_season(years[i], urls[i]) for i in range(len(years))]
 
 
 def scrap_season(year, url):
@@ -85,7 +80,6 @@ def scrap_match_page(url):
     home_team_formation = teams_formation_soup_list[0].get_text()
     away_team_formation = teams_formation_soup_list[1].get_text()
 
-    # players = {}
     home_players_soup_list = soup.find("div", class_="col-4-m").find_all("li", class_="player")
     away_players_soup_list = soup.find("div", class_="col-4-m right").find_all("li", class_="player")
     home_players = {player.find("div", class_="number").get_text(): get_text_no_recursive(player.find("div", class_="name")) for player in home_players_soup_list}
@@ -223,8 +217,3 @@ def write_jogos_quinados():
     with open("JogosQuinados.txt", "a") as jogos_quinados_file:
         for jogo_quinado in jogos_quinados_url:
             jogos_quinados_file.write(jogo_quinado + "\n")
-
-
-create_wb(scrap_premier_league())
-write_taticas_rosques()
-write_jogos_quinados()
